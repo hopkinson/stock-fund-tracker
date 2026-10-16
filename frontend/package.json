@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:e2e": "node e2e_regression.cjs"
+    "test:e2e": "node e2e_regression.cjs",
+    "graph:status": "python -m code_review_graph status",
+    "graph:build": "python -m code_review_graph build",
+    "graph:visualize": "python -m code_review_graph visualize"
   },
   "dependencies": {
     "axios": "^1.6.8",

@@ -86,19 +86,16 @@ async def job_night_fund_notify():
     finally:
         db.close()
 
-async def job_kol_macro_notify():
-    """15:15 收盘快讯推送"""
+async def job_daily_market_ai_recap():
+    """15:30 盘后全天大事与 AI 冷静观察（新浪+东财多源聚合推送）"""
     now = datetime.now()
     if now.weekday() >= 5:
         return
-    news = await kol_tracker_service.get_latest_7x24_news(limit=5)
-    if news:
-        db = SessionLocal()
-        try:
-            content = "### 📢 收盘快讯\n" + "\n".join([f"- **{n['time'][-8:]}** {n['text']}" for n in news])
-            await notify_service.send_notification("📢 收盘快讯", content, db, event_type="alert")
-        finally:
-            db.close()
+    db = SessionLocal()
+    try:
+        await kol_tracker_service.generate_and_push_daily_recap(db)
+    finally:
+        db.close()
 
 def start_scheduler():
     # 盘中每 20 秒刷新一次
@@ -110,8 +107,8 @@ def start_scheduler():
     # 15:05 收盘
     scheduler.add_job(job_close_market_notify, CronTrigger(hour=15, minute=5, day_of_week="mon-fri"), id="close_notify", replace_existing=True)
 
-    # 15:15 盘后宏观与行业快讯
-    scheduler.add_job(job_kol_macro_notify, CronTrigger(hour=15, minute=15, day_of_week="mon-fri"), id="kol_macro_notify", replace_existing=True)
+    # 15:30 盘后全天大事与 AI 冷静观察（多源聚合推送微信）
+    scheduler.add_job(job_daily_market_ai_recap, CronTrigger(hour=15, minute=30, day_of_week="mon-fri"), id="daily_market_ai_recap", replace_existing=True)
     
     # 21:45 夜间净值更新
     scheduler.add_job(job_night_fund_notify, CronTrigger(hour=21, minute=45, day_of_week="mon-fri"), id="night_fund_notify", replace_existing=True)

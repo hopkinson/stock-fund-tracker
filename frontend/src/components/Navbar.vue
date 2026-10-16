@@ -24,6 +24,8 @@
             <span class="text-slate-600">·</span>
             <span>雪球</span>
             <span class="text-slate-600">·</span>
+            <span>养基宝</span>
+            <span class="text-slate-600">·</span>
             <span class="text-slate-500">自动同步持仓</span>
           </p>
         </div>

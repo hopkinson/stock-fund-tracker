@@ -120,11 +120,19 @@
             <div 
               v-for="(item, idx) in news" 
               :key="idx"
-              class="p-3 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1 hover:border-slate-700 transition"
+              class="p-3 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1.5 hover:border-slate-700 transition"
             >
-              <div class="flex items-center space-x-2 text-[11px] text-slate-500">
-                <Clock class="w-3 h-3 text-slate-400" />
-                <span>{{ item.time }}</span>
+              <div class="flex items-center space-x-2 text-[11px]">
+                <span 
+                  class="px-1.5 py-0.2 rounded text-[10px] font-medium"
+                  :class="item.source === '东方财富' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'"
+                >
+                  {{ item.source || '快讯' }}
+                </span>
+                <span class="text-slate-500 flex items-center space-x-1">
+                  <Clock class="w-3 h-3 text-slate-500" />
+                  <span>{{ item.time }}</span>
+                </span>
               </div>
               <p class="text-xs text-slate-300 leading-relaxed">{{ item.text }}</p>
             </div>

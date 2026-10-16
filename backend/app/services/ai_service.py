@@ -246,4 +246,36 @@ class AIService:
         except Exception as e:
             return f"调用 AI 服务失败: {str(e)}"
 
+    @property
+    def is_configured(self) -> bool:
+        return bool(os.getenv("AI_API_KEY", self.api_key).strip())
+
+    async def chat_completion(self, prompt: str, system_prompt: str = "你是一位客观理性的投资助手，用大白话交流，严禁喊买卖，注重防追高风险。") -> str:
+        api_key = os.getenv("AI_API_KEY", self.api_key)
+        if not api_key:
+            return ""
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.4,
+            "max_tokens": 800
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{self.api_base.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json=payload
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"[AIService] chat_completion error: {e}")
+        return ""
+
 ai_service = AIService()
+

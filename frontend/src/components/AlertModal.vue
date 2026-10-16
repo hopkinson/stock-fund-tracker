@@ -48,7 +48,7 @@
                 : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-600 text-slate-300'"
             >
               <span>{{ preset.title }}</span>
-              <span class="text-[10px] font-mono px-1 rounded" :class="preset.badgeClass">{{ preset.valText }}</span>
+              <span class="text-[10px] font-mono px-1 rounded" :class="getRuleBadge(preset.rule_type)">{{ preset.valText }}</span>
             </button>
           </div>
 
@@ -216,45 +216,14 @@ const newRule = ref({
 
 // 常用预设推荐列表 (精简 Pill 形式)
 const presets = [
-  {
-    title: '稳健止盈',
-    valText: '+15%',
-    rule_type: 'stop_profit',
-    threshold: 15.0,
-    badgeClass: 'bg-rose-500/20 text-rose-300'
-  },
-  {
-    title: '高抛止盈',
-    valText: '+25%',
-    rule_type: 'stop_profit',
-    threshold: 25.0,
-    badgeClass: 'bg-rose-500/20 text-rose-300'
-  },
-  {
-    title: '低吸补仓',
-    valText: '-2%',
-    rule_type: 'day_change_below',
-    threshold: 2.0,
-    badgeClass: 'bg-emerald-500/20 text-emerald-300'
-  },
-  {
-    title: '严格止损',
-    valText: '-8%',
-    rule_type: 'stop_loss',
-    threshold: 8.0,
-    badgeClass: 'bg-amber-500/20 text-amber-300'
-  }
+  { title: '稳健止盈', valText: '+15%', rule_type: 'stop_profit', threshold: 15.0 },
+  { title: '高抛止盈', valText: '+25%', rule_type: 'stop_profit', threshold: 25.0 },
+  { title: '低吸补仓', valText: '-2%', rule_type: 'day_change_below', threshold: 2.0 },
+  { title: '严格止损', valText: '-8%', rule_type: 'stop_loss', threshold: 8.0 }
 ]
 
 // 判断是否为基金
-const isEtfCode = (code, name = '') => {
-  if (!code) return false
-  const c = String(code).trim()
-  const n = String(name || '')
-  if (c.startsWith('51') || c.startsWith('15') || c.startsWith('16') || c.startsWith('58')) return true
-  if (n.includes('ETF') || n.includes('指数') || n.includes('LOF') || n.includes('联接')) return true
-  return false
-}
+const isEtfCode = (code, name = '') => /^(51|15|16|58)/.test(String(code || '').trim()) || /ETF|指数|LOF|联接/.test(name || '')
 
 const fetchRules = async () => {
   try {
@@ -325,15 +294,11 @@ const formatRuleText = (r) => {
   return map[r.rule_type] || `${r.threshold}%`
 }
 
-const getRuleBadge = (type) => {
-  if (type === 'day_change_above' || type === 'stop_profit') {
-    return 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-  }
-  if (type === 'day_change_below') {
-    return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-  }
-  return 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+const badgeMap = {
+  day_change_below: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+  stop_loss: 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
 }
+const getRuleBadge = (type) => badgeMap[type] || 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
 
 onMounted(() => {
   fetchRules()

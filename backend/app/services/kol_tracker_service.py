@@ -1,55 +1,109 @@
 import re
+import json
+import asyncio
 import httpx
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
 
 from app.services.quote_service import quote_service
 from app.services.ai_service import ai_service
+from app.services.notify_service import notify_service
 
 class KOLTrackerService:
     def __init__(self):
         self.sina_news_url = "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=40&zhibo_id=152"
+        self.eastmoney_news_url = "https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_ajaxResult_50_1_.html"
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
         }
 
-    async def get_latest_7x24_news(self, keyword: str = "", limit: int = 20) -> List[Dict[str, str]]:
-        """获取新浪 7x24 全球财经快讯，并可按关键词或板块过滤"""
+    async def _fetch_sina_news(self, client: httpx.AsyncClient, limit: int = 25) -> List[Dict[str, str]]:
+        """拉取新浪 7x24 宏观与大盘快讯"""
+        try:
+            resp = await client.get(self.sina_news_url)
+            if resp.status_code == 200:
+                feed_list = resp.json().get("result", {}).get("data", {}).get("feed", {}).get("list", [])
+                items = []
+                for item in feed_list:
+                    raw_text = item.get("rich_text", "") or item.get("text", "")
+                    clean_text = re.sub(r"<[^>]+>", "", raw_text).strip()
+                    create_time = item.get("create_time", "")
+                    if clean_text:
+                        items.append({"source": "新浪财经", "time": create_time, "text": clean_text})
+                    if len(items) >= limit:
+                        break
+                return items
+        except Exception as e:
+            print(f"[News] fetch sina error: {e}")
+        return []
+
+    async def _fetch_eastmoney_news(self, client: httpx.AsyncClient, limit: int = 25) -> List[Dict[str, str]]:
+        """拉取东方财富 7x24 A股与行业快讯"""
+        try:
+            resp = await client.get(self.eastmoney_news_url)
+            if resp.status_code == 200:
+                text = resp.text.replace("var ajaxResult=", "").strip().rstrip(";")
+                data = json.loads(text)
+                lives = data.get("LivesList", [])
+                items = []
+                for item in lives:
+                    title = item.get("title", "")
+                    digest = item.get("digest", "")
+                    show_time = item.get("showtime", "")
+                    full_text = f"{title}：{digest}" if (title and digest and title != digest) else (title or digest)
+                    full_text = re.sub(r"<[^>]+>", "", full_text).strip()
+                    if full_text:
+                        items.append({"source": "东方财富", "time": show_time, "text": full_text})
+                    if len(items) >= limit:
+                        break
+                return items
+        except Exception as e:
+            print(f"[News] fetch eastmoney error: {e}")
+        return []
+
+    async def get_latest_7x24_news(self, keyword: str = "", limit: int = 25) -> List[Dict[str, str]]:
+        """
+        多源并行聚合拉取（新浪宏观 + 东方财富A股行业）：
+        毫秒级异步并发，利用文本指纹自动排重，按时间倒序混排
+        """
         try:
             async with httpx.AsyncClient(headers=self.headers, timeout=5.0) as client:
-                resp = await client.get(self.sina_news_url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    feed_list = data.get("result", {}).get("data", {}).get("feed", {}).get("list", [])
-                    news_items = []
-                    for item in feed_list:
-                        raw_text = item.get("rich_text", "") or item.get("text", "")
-                        clean_text = re.sub(r"<[^>]+>", "", raw_text).strip()
-                        create_time = item.get("create_time", "")
-                        if not clean_text:
+                res_sina, res_em = await asyncio.gather(
+                    self._fetch_sina_news(client, limit=limit),
+                    self._fetch_eastmoney_news(client, limit=limit),
+                    return_exceptions=True
+                )
+                raw_list = [item for r in (res_sina, res_em) if isinstance(r, list) for item in r]
+
+                # 简单指纹排重（取清洗后前 14 个有效字符）
+                seen_signatures = set()
+                deduped = []
+                for item in raw_list:
+                    text = item["text"]
+                    if keyword:
+                        clean_kw = keyword.replace("ETF", "").replace("中证", "").replace("指数", "").strip()
+                        if clean_kw and clean_kw not in text:
                             continue
 
-                        if keyword:
-                            clean_kw = keyword.replace("ETF", "").replace("中证", "").replace("指数", "").strip()
-                            if clean_kw and clean_kw in clean_text:
-                                news_items.append({"time": create_time, "text": clean_text})
-                        else:
-                            news_items.append({"time": create_time, "text": clean_text})
+                    sig = re.sub(r"[\s\W_]+", "", text)[:14]
+                    if sig and sig not in seen_signatures:
+                        seen_signatures.add(sig)
+                        deduped.append(item)
 
-                        if len(news_items) >= limit:
-                            break
-
-                    return news_items
+                # 按时间降序排序
+                deduped.sort(key=lambda x: x.get("time", ""), reverse=True)
+                return deduped[:limit]
         except Exception as e:
-            print(f"[KOLTracker] fetch sina news error: {e}")
-        return []
+            print(f"[News] multi-source error: {e}")
+            return []
 
     async def get_market_trends_overview(self) -> Dict[str, Any]:
         """
         全自动市场风向与板块动态概览（零人工输入）：
         1. 自动拉取核心宽基与热门行业 ETF 实时表现
         2. 结合估值分位客观评判，坚决不无脑喊买卖，重点做防追高提示
-        3. 聚合最新 7x24 财经快讯
+        3. 聚合最新 7x24 多源财经快讯
         """
         watch_targets = [
             {"code": "159338", "name": "中证A500", "category": "核心宽基"},
@@ -120,10 +174,9 @@ class KOLTrackerService:
                 "hint": hint
             })
 
-        # 按今日涨跌幅降序排列
         board_list.sort(key=lambda x: x["change_rate"], reverse=True)
 
-        latest_news = await self.get_latest_7x24_news(limit=15)
+        latest_news = await self.get_latest_7x24_news(limit=20)
 
         top_gainers = [b for b in board_list if b["change_rate"] > 0][:3]
         top_losers = [b for b in board_list if b["change_rate"] < 0][-3:]
@@ -143,5 +196,52 @@ class KOLTrackerService:
             "boards": board_list,
             "news": latest_news
         }
+
+    async def generate_and_push_daily_recap(self, db: Session):
+        """
+        盘后 15:30 AI 自动提炼全天大事解读与冷静观察，推送到微信
+        """
+        data = await self.get_market_trends_overview()
+        news = data.get("news", [])[:10]
+        boards = data.get("boards", [])
+
+        # 整理要点
+        top_gainers = [b for b in boards if b["change_rate"] > 1.5][:3]
+        hot_warning = ""
+        if top_gainers:
+            hot_warning = f"⚠️ 今日领涨的 {', '.join([g['name'] for g in top_gainers])} 短期波动较大，切勿因热门盲目追高。\n"
+
+        news_text = "\n".join([f"- **[{n.get('source', '快讯')}]** {n['text']}" for n in news[:5]])
+
+        # 尝试调用大模型提炼；若未配 Key 或调用失败，优雅回退本地通俗总结
+        ai_summary = data.get("summary", "")
+        if ai_service.is_configured:
+            prompt = (
+                f"这是今天的市场板块表现和精选大事：\n"
+                f"板块概况：{data.get('summary')}\n"
+                f"最新要闻：{news_text}\n\n"
+                f"请用普通投资者能听懂的大白话，输出一份收盘解读：\n"
+                f"1. 用2-3句话总结今天市场核心大势；\n"
+                f"2. 指出对主要板块的影响；\n"
+                f"3. 严肃做防追高提醒（严禁喊买卖，严禁吹捧大涨板块）。总字数在 150 字以内。"
+            )
+            try:
+                ai_res = await ai_service.chat_completion(prompt)
+                if ai_res:
+                    ai_summary = ai_res.strip()
+            except Exception as e:
+                print(f"[DailyRecap] AI call failed, fallback to local summary: {e}")
+
+        content_lines = [
+            f"### 📢 收盘大事与冷静观察",
+            f"> 聚合新浪 + 东方财富 7x24 优质资讯流 | {datetime.now().strftime('%m月%d日 15:30')}\n",
+            f"#### 💡 今日 AI 白话解读",
+            f"{ai_summary}\n",
+            hot_warning,
+            f"#### 🌐 盘后精选大事",
+            news_text
+        ]
+        markdown_body = "\n".join(filter(None, content_lines))
+        await notify_service.send_notification("📢 收盘大事与冷静观察", markdown_body, db, event_type="market_recap")
 
 kol_tracker_service = KOLTrackerService()

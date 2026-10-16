@@ -13,7 +13,7 @@
               账户与持仓同步
             </h3>
             <p class="text-xs text-slate-400 mt-0.5">
-              绑定东方财富、天天基金、雪球账号，自动同步持仓和成本
+              绑定东方财富、天天基金、雪球、养基宝账号，自动同步持仓和成本
             </p>
           </div>
         </div>
@@ -139,26 +139,28 @@
                   <ExternalLink class="w-2.5 h-2.5 opacity-60" />
                 </a>
 
-                <!-- 步骤2: 控制台一键复制代码 / 东财指引 -->
+                <!-- 步骤2: 控制台一键复制代码 / 东财指引 / 养基宝说明 -->
                 <button 
                   type="button"
                   @click="copyCommandSnippet(acc.platform)"
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] transition border font-mono"
                   :class="acc.platform === 'eastmoney' 
                     ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30' 
-                    : copied 
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                      : 'bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 border-indigo-500/30'"
+                    : acc.platform === 'yangjibao'
+                      ? 'bg-teal-500/10 text-teal-300 hover:bg-teal-500/20 border-teal-500/30'
+                      : copied 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                        : 'bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 border-indigo-500/30'"
                 >
-                  <AlertCircle v-if="acc.platform === 'eastmoney'" class="w-2.5 h-2.5 text-amber-400" />
+                  <AlertCircle v-if="acc.platform === 'eastmoney' || acc.platform === 'yangjibao'" class="w-2.5 h-2.5" :class="acc.platform === 'yangjibao' ? 'text-teal-400' : 'text-amber-400'" />
                   <Check v-else-if="copied" class="w-2.5 h-2.5 text-emerald-400" />
                   <Copy v-else class="w-2.5 h-2.5 opacity-70" />
-                  <span>{{ acc.platform === 'eastmoney' ? '2. 查看东财提取步骤' : (copied ? '已复制代码' : '2. 复制提取代码') }}</span>
+                  <span>{{ { eastmoney: '2. 查看东财步骤', yangjibao: '2. 查看导入说明' }[acc.platform] || (copied ? '已复制代码' : '2. 复制提取代码') }}</span>
                 </button>
               </div>
 
               <span class="text-[10px] text-slate-400 font-mono">
-                {{ acc.platform === 'eastmoney' ? '按 F12 从网络请求复制 Cookie 粘贴在下方' : '按 F12 粘贴回车即可' }}
+                {{ { eastmoney: '按 F12 从网络请求复制 Cookie 粘贴在下方', yangjibao: '直接粘贴 JSON 文本或 API Token' }[acc.platform] || '按 F12 粘贴回车即可' }}
               </span>
             </div>
 
@@ -266,6 +268,15 @@ const copyCommandSnippet = (platform) => {
     )
     return
   }
+  if (platform === 'yangjibao') {
+    alert(
+      '【养基宝持仓导入方式】\n\n' +
+      '1. 支持直接粘贴养基宝导出的持仓 JSON 文本（包含基金代码、持有份额、成本价）\n' +
+      '2. 或粘贴养基宝 API 接口地址与 Token（格式: 接口URL | Bearer Token）\n' +
+      '3. 点击「保存并同步」即可自动解析并导入基金持仓！'
+    )
+    return
+  }
   const code = 'copy(document.cookie)'
   if (navigator?.clipboard?.writeText) {
     navigator.clipboard.writeText(code)
@@ -368,7 +379,7 @@ const getCredentialPlaceholder = (p) => {
   if (p === 'xueqiu') return '粘贴雪球 Token 或完整 Cookie...'
   if (p === 'tiantian') return '粘贴天天基金网页 Cookie...'
   if (p === 'eastmoney') return '粘贴东方财富交易端 Cookie...'
-  if (p === 'yangjibao') return '粘贴养基宝 Token 或持仓文本...'
+  if (p === 'yangjibao') return '粘贴养基宝持仓 JSON 文本或 API Token...'
   return '在此粘贴...'
 }
 
