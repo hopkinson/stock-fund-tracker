@@ -8,6 +8,7 @@ from app.models.database import get_db, Position, Account, AlertRule, Notificati
 from app.services.portfolio_service import portfolio_service
 from app.services.notify_service import notify_service
 from app.services.auto_sync_engine import auto_sync_engine
+from app.services.kol_tracker_service import kol_tracker_service
 
 router = APIRouter()
 
@@ -348,4 +349,26 @@ async def request_ai_review(req: AIReviewRequest, db: Session = Depends(get_db))
 
     result = await ai_service.analyze_portfolio(pos_data, summary, req.prompt)
     return {"success": True, "analysis": result}
+
+# ----------- KOL 调仓验真与快讯接口 -----------
+
+class KOLAnalyzeRequest(BaseModel):
+    content: str
+    blogger_name: Optional[str] = "小红书博主"
+    push_notify: bool = False
+
+@router.post("/kol/analyze")
+async def analyze_kol_post(req: KOLAnalyzeRequest, db: Session = Depends(get_db)):
+    """分析博主发布的交易动态，结合行情、估值与快讯进行综合验真"""
+    result = await kol_tracker_service.analyze_blogger_post(req.content, req.blogger_name)
+    if result.get("success") and req.push_notify and result.get("report_markdown"):
+        await kol_tracker_service.push_analysis_to_wechat(result["report_markdown"], db)
+    return result
+
+@router.get("/kol/news")
+async def get_market_news(keyword: Optional[str] = "", limit: int = 20):
+    """获取最新 7x24 宏观与行业财经快讯"""
+    news = await kol_tracker_service.get_latest_7x24_news(keyword=keyword, limit=limit)
+    return {"success": True, "count": len(news), "news": news}
+
 
