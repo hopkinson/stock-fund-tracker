@@ -10,10 +10,10 @@
           </div>
           <div>
             <h3 class="font-semibold text-slate-100 text-sm">
-              持仓与平台同步
+              账户与持仓同步
             </h3>
             <p class="text-xs text-slate-400 mt-0.5">
-              连接东方财富、天天基金、雪球，自动拉取持仓与成本
+              绑定东方财富、天天基金、雪球账号，自动同步持仓和成本
             </p>
           </div>
         </div>
@@ -26,9 +26,9 @@
             title="一键同步所有已绑定平台"
           >
             <RefreshCw class="w-3.5 h-3.5" :class="{'animate-spin': syncingAll}" />
-            <span>{{ syncingAll ? '全量同步中...' : '一键全量同步' }}</span>
+            <span>{{ syncingAll ? '正在同步...' : '一键全部同步' }}</span>
           </button>
-          <button @click="$emit('close')" class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800">
+          <button @click="$emit('close')" class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800" title="关闭">
             <X class="w-4 h-4" />
           </button>
         </div>
@@ -64,9 +64,9 @@
                 </div>
                 
                 <div class="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
-                  资产: ¥{{ (acc.market_value || 0).toLocaleString() }} · {{ acc.position_count || 0 }} 个持仓
+                  市值: ¥{{ (acc.market_value || 0).toLocaleString() }} · {{ acc.position_count || 0 }} 只
                   <span v-if="acc.last_sync_time" class="text-slate-500 ml-1.5">
-                    · {{ formatTime(acc.last_sync_time) }} 同步
+                    · {{ formatTime(acc.last_sync_time) }} 已同步
                   </span>
                 </div>
               </div>
@@ -79,9 +79,9 @@
                 target="_blank" 
                 rel="noopener noreferrer"
                 class="px-2.5 py-1 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition flex items-center space-x-1"
-                title="在新窗口打开平台网页"
+                title="去平台网页登录"
               >
-                <span>打开网页</span>
+                <span>去登录</span>
                 <ExternalLink class="w-3 h-3 opacity-70" />
               </a>
 
@@ -92,14 +92,14 @@
                   ? 'bg-slate-800 text-slate-200 border-slate-600' 
                   : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800 hover:border-slate-700'"
               >
-                {{ activeEditId === acc.id ? '收起' : '配置' }}
+                {{ activeEditId === acc.id ? '收起' : '设置' }}
               </button>
 
               <button 
                 @click="triggerSync(acc.id)"
                 :disabled="syncingId === acc.id"
                 class="p-1.5 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 transition disabled:opacity-50"
-                :title="syncingId === acc.id ? '同步中...' : '立即同步持仓'"
+                :title="syncingId === acc.id ? '正在同步...' : '立即同步'"
               >
                 <RefreshCw class="w-3.5 h-3.5" :class="{'animate-spin text-indigo-300': syncingId === acc.id}" />
               </button>
@@ -126,7 +126,7 @@
             <!-- 引导栏：水平步骤胶囊，消除大面积文字墙 -->
             <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 pt-1">
               <div class="flex items-center space-x-2">
-                <span class="text-[11px] text-slate-400">两步获取:</span>
+                <span class="text-[11px] text-slate-400">两步搞定:</span>
                 
                 <!-- 步骤1: 网页直达 -->
                 <a 
@@ -135,7 +135,7 @@
                   rel="noopener noreferrer"
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-[11px] transition border border-slate-700/60"
                 >
-                  <span>1. 登录网页</span>
+                  <span>1. 打开网页登录</span>
                   <ExternalLink class="w-2.5 h-2.5 opacity-60" />
                 </a>
 
@@ -145,7 +145,7 @@
                   @click="copyCommandSnippet(acc.platform)"
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] transition border font-mono"
                   :class="acc.platform === 'eastmoney' 
-                    ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30'
+                    ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30' 
                     : copied 
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                       : 'bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 border-indigo-500/30'"
@@ -153,23 +153,23 @@
                   <AlertCircle v-if="acc.platform === 'eastmoney'" class="w-2.5 h-2.5 text-amber-400" />
                   <Check v-else-if="copied" class="w-2.5 h-2.5 text-emerald-400" />
                   <Copy v-else class="w-2.5 h-2.5 opacity-70" />
-                  <span>{{ acc.platform === 'eastmoney' ? '2. 抓取说明(需Network面板)' : (copied ? '已复制命令' : '2. 复制抓取代码') }}</span>
+                  <span>{{ acc.platform === 'eastmoney' ? '2. 查看东财提取步骤' : (copied ? '已复制代码' : '2. 复制提取代码') }}</span>
                 </button>
               </div>
 
               <span class="text-[10px] text-slate-400 font-mono">
-                {{ acc.platform === 'eastmoney' ? '从网络面板复制 Cookie 标头' : '按 F12 粘贴回车即可' }}
+                {{ acc.platform === 'eastmoney' ? '按 F12 从网络请求复制 Cookie 粘贴在下方' : '按 F12 粘贴回车即可' }}
               </span>
             </div>
 
             <!-- 东财专属提示条 -->
-            <div v-if="acc.platform === 'eastmoney'" class="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 space-y-1">
-              <div class="font-medium flex items-center space-x-1 text-amber-400">
-                <AlertCircle class="w-3.5 h-3.5" />
-                <span>东财 Cookie 获取注意事项（含 HttpOnly）</span>
+            <div v-if="acc.platform === 'eastmoney'" class="text-[11px] text-indigo-300/90 bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-2.5 space-y-1">
+              <div class="font-medium flex items-center space-x-1 text-indigo-400">
+                <Check class="w-3.5 h-3.5" />
+                <span>东财持仓同步方法</span>
               </div>
               <p class="text-slate-300 leading-relaxed text-[11px]">
-                东财交易会话 <code>ASP.NET_SessionId</code> 受安全防护，控制台脚本无法读取。请按 <strong>F12</strong> 打开开发者工具，切到 <strong>网络 (Network)</strong> 标签，点击页面左侧任意菜单，在网络请求的 <strong>标头 (Headers) -&gt; 请求标头 (Request Headers)</strong> 中复制完整的 <strong>Cookie</strong> 粘贴在下方。
+                按 <strong>F12</strong> 打开开发者工具，切到 <strong>网络 (Network)</strong> 标签，点击页面左侧任意菜单，在网络请求列表中找到 <code>queryAssetAndPositionV1</code>，复制其 <strong>请求标头中的 Cookie</strong>（或右键「以 fetch 格式复制」整段代码）直接粘贴在下方即可。
               </p>
             </div>
 
@@ -191,17 +191,17 @@
                   v-model="editForm.auto_sync" 
                   class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 focus:ring-offset-0" 
                 />
-                <span>交易时间定时自动刷新</span>
+                <span>交易时间自动同步</span>
               </label>
 
-              <!-- 单一主按钮：保存并立即同步，免除二次点击困扰 -->
+              <!-- 单一主按钮：保存并立即同步 -->
               <button 
                 @click="saveAndSync(acc.id)"
                 :disabled="savingAndSyncing"
                 class="px-4 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm shadow-indigo-600/30 flex items-center space-x-1.5 disabled:opacity-50"
               >
                 <RefreshCw v-if="savingAndSyncing" class="w-3 h-3 animate-spin" />
-                <span>{{ savingAndSyncing ? '保存并同步中...' : '保存并立即同步' }}</span>
+                <span>{{ savingAndSyncing ? '正在同步...' : '保存并同步' }}</span>
               </button>
             </div>
 
@@ -256,15 +256,13 @@ const toggleEdit = (acc) => {
 const copyCommandSnippet = (platform) => {
   if (platform === 'eastmoney') {
     alert(
-      '【东方财富 Cookie 获取提示】\n\n' +
-      '由于东财交易端启用了 HttpOnly 安全机制，控制台无法通过 document.cookie 读取会话凭据。\n\n' +
-      '请按以下步骤获取完整 Cookie：\n' +
-      '1. 点击「1. 登录网页」登录东财交易系统 (jywg.18.cn)\n' +
+      '【东方财富持仓凭据获取步骤】\n\n' +
+      '1. 登录网页版交易端 (jywg.18.cn)\n' +
       '2. 按 F12 打开开发者工具，切换到「网络 (Network)」标签\n' +
       '3. 点击页面左侧「查询」或「资金持仓」\n' +
-      '4. 在网络列表中点击任意请求（如 Position 或任意 aspx 请求）\n' +
-      '5. 在右侧「标头 (Headers)」找到「请求标头 (Request Headers)」中的 Cookie\n' +
-      '6. 复制整串 Cookie（必须包含 ASP.NET_SessionId）粘贴到输入框即可。'
+      '4. 在网络列表中找到 queryAssetAndPositionV1\n' +
+      '5. 复制其请求标头中的 Cookie，或右键选择「以 fetch 格式复制」\n' +
+      '6. 直接粘贴到输入框中保存即可自动同步！'
     )
     return
   }
@@ -287,7 +285,7 @@ const saveAndSync = async (id) => {
     activeEditId.value = null
     await fetchAccounts()
     emit('refresh')
-    alert(syncRes.data?.message || '凭证保存并同步完成！')
+    alert(syncRes.data?.message || '保存并同步成功！')
   } catch (e) {
     alert('操作失败: ' + (e.response?.data?.message || e.message))
     await fetchAccounts()
@@ -315,7 +313,7 @@ const triggerSyncAll = async () => {
   syncingAll.value = true
   try {
     await syncAllAccounts()
-    alert('全量同步触发成功！')
+    alert('已开始同步全部账户！')
     await fetchAccounts()
     emit('refresh')
   } catch (e) {
@@ -361,17 +359,17 @@ const getStatusBadgeClass = (acc) => {
 }
 
 const getStatusText = (acc) => {
-  if (acc.sync_status === 'error') return '需更新凭据'
-  if (acc.has_cookie) return '已绑定'
-  return '待绑定'
+  if (acc.sync_status === 'error') return '需更新'
+  if (acc.has_cookie) return '已连接'
+  return '未绑定'
 }
 
 const getCredentialPlaceholder = (p) => {
-  if (p === 'xueqiu') return '粘贴雪球 xq_a_token 或完整 Cookie...'
-  if (p === 'tiantian') return '粘贴天天基金网页登录后抓取的整串 Cookie...'
-  if (p === 'eastmoney') return '粘贴东方财富交易端登录后抓取的整串 Cookie...'
-  if (p === 'yangjibao') return '粘贴养基宝小程序 Token，或直接粘贴持仓 JSON 文本...'
-  return '在此粘贴凭证...'
+  if (p === 'xueqiu') return '粘贴雪球 Token 或完整 Cookie...'
+  if (p === 'tiantian') return '粘贴天天基金网页 Cookie...'
+  if (p === 'eastmoney') return '粘贴东方财富交易端 Cookie...'
+  if (p === 'yangjibao') return '粘贴养基宝 Token 或持仓文本...'
+  return '在此粘贴...'
 }
 
 

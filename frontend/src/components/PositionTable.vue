@@ -30,7 +30,7 @@
           class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 hover:text-indigo-200 border border-indigo-700/40 transition flex items-center space-x-1 shrink-0 ml-1"
           :title="'前往 ' + getPlatformName(currentPlatform) + ' 官网/交易端'"
         >
-          <span>进{{ getPlatformName(currentPlatform) }}</span>
+          <span>打开{{ getPlatformName(currentPlatform) }}</span>
           <ExternalLink class="w-3 h-3" />
         </a>
       </div>
@@ -41,16 +41,16 @@
           v-model="currentType" 
           class="bg-slate-900/90 border border-slate-700/70 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium"
         >
-          <option value="all">所有资产类别</option>
+          <option value="all">全部类型</option>
           <option value="stock">股票 / ETF</option>
-          <option value="fund">场外公募基金</option>
+          <option value="fund">基金</option>
         </select>
 
         <div class="relative flex-1 sm:w-52">
           <input 
             v-model="searchKeyword"
             type="text" 
-            placeholder="搜索代码或名称..." 
+            placeholder="搜索名称或代码..." 
             class="w-full bg-slate-900/90 border border-slate-700/70 text-slate-200 text-xs rounded-lg pl-7 pr-7 py-1.5 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
           />
           <Search class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" />
@@ -70,14 +70,14 @@
       <table class="w-full text-left text-xs">
         <thead class="bg-[#0b101c] text-slate-400 border-b border-slate-800 font-medium select-none">
           <tr>
-            <th class="py-3 px-4">标的资产</th>
-            <th class="py-3 px-3 text-center">托管平台</th>
+            <th class="py-3 px-4">名称 / 代码</th>
+            <th class="py-3 px-3 text-center">平台</th>
             <th 
               @click="toggleSort('current_price')"
               class="py-3 px-3 text-right cursor-pointer hover:text-slate-200 transition"
             >
               <div class="flex items-center justify-end space-x-1">
-                <span>最新价/估值</span>
+                <span>最新价</span>
                 <component :is="getSortIcon('current_price')" class="w-3 h-3 text-slate-500" />
               </div>
             </th>
@@ -90,14 +90,14 @@
                 <component :is="getSortIcon('today_profit_rate')" class="w-3 h-3 text-slate-500" />
               </div>
             </th>
-            <th class="py-3 px-3 text-right">持有份额</th>
-            <th class="py-3 px-3 text-right">持仓成本</th>
+            <th class="py-3 px-3 text-right">持仓数量</th>
+            <th class="py-3 px-3 text-right">成本价</th>
             <th 
               @click="toggleSort('market_value')"
               class="py-3 px-3 text-right cursor-pointer hover:text-slate-200 transition"
             >
               <div class="flex items-center justify-end space-x-1">
-                <span>持仓市值</span>
+                <span>市值</span>
                 <component :is="getSortIcon('market_value')" class="w-3 h-3 text-slate-500" />
               </div>
             </th>
@@ -115,7 +115,7 @@
               class="py-3 px-4 text-right cursor-pointer hover:text-slate-200 transition"
             >
               <div class="flex items-center justify-end space-x-1">
-                <span>累计盈亏 (收益率)</span>
+                <span>累计盈亏</span>
                 <component :is="getSortIcon('total_profit_rate')" class="w-3 h-3 text-slate-500" />
               </div>
             </th>
@@ -138,14 +138,14 @@
                       v-if="pos.is_valuation" 
                       class="px-1.5 py-0.2 text-[10px] rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium"
                     >
-                      盘中估算
+                      估算
                     </span>
                   </div>
                   <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center space-x-1.5">
                     <span 
                       @click="copyCode(pos.code)" 
                       class="hover:text-indigo-400 cursor-pointer underline decoration-dotted underline-offset-2"
-                      title="点击复制标的代码"
+                      title="点击复制代码"
                     >
                       {{ pos.code }}
                     </span>
@@ -165,7 +165,7 @@
                 rel="noopener noreferrer"
                 class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium hover:opacity-80 transition" 
                 :class="getPlatformBadgeClass(pos.platform)"
-                title="点击前往该平台查看实盘"
+                title="去该平台查看"
               >
                 <span>{{ getPlatformName(pos.platform) }}</span>
                 <ExternalLink class="w-2.5 h-2.5 opacity-60" />
@@ -189,7 +189,7 @@
               </span>
             </td>
 
-            <!-- 持有份额 -->
+            <!-- 持仓数量 -->
             <td class="py-3 px-3 text-right num-font text-slate-300">
               {{ privacyMode ? '••••••' : pos.shares?.toLocaleString() }}
             </td>
@@ -199,7 +199,7 @@
               ¥{{ privacyMode ? '••••' : pos.cost_price?.toFixed(pos.asset_type === 'fund' ? 4 : 2) }}
             </td>
 
-            <!-- 持仓市值 -->
+            <!-- 市值 -->
             <td class="py-3 px-3 text-right num-font font-bold text-slate-100">
               ¥{{ privacyMode ? '••••••' : formatMoney(pos.market_value) }}
             </td>
@@ -228,7 +228,7 @@
                 <button 
                   @click="$emit('delete-pos', pos.id)"
                   class="p-1.5 hover:bg-rose-500/10 rounded-lg text-slate-500 hover:text-rose-400 transition"
-                  title="移除此项监控记录"
+                  title="删除此持仓"
                 >
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
@@ -240,8 +240,8 @@
           <tr v-if="sortedPositions.length === 0">
             <td colspan="10" class="py-12 text-center text-slate-400 text-xs">
               <div class="max-w-xs mx-auto space-y-2">
-                <p>未找到符合条件的持仓记录</p>
-                <p class="text-[11px] text-slate-500">点击右上角【账户同步】配置凭证后即可全自动秒级同步</p>
+                <p>暂无符合条件的持仓</p>
+                <p class="text-[11px] text-slate-500">点击右上角【同步持仓】绑定账号，即可自动同步</p>
               </div>
             </td>
           </tr>
@@ -255,20 +255,20 @@
       class="hidden md:flex items-center justify-between px-4 py-2.5 bg-[#0b101c] border-t border-slate-800 text-xs text-slate-400"
     >
       <div>
-        <span>当前筛选显示 </span>
+        <span>共 </span>
         <span class="font-semibold text-slate-200 num-font">{{ sortedPositions.length }}</span>
-        <span> 只标的</span>
+        <span> 只</span>
       </div>
 
       <div class="flex items-center space-x-6 num-font">
         <div>
-          <span>筛选市值合计: </span>
+          <span>市值合计: </span>
           <span class="font-bold text-slate-200">
             ¥{{ privacyMode ? '••••••' : formatMoney(totalFilteredMarketValue) }}
           </span>
         </div>
         <div>
-          <span>今日合计盈亏: </span>
+          <span>今日盈亏合计: </span>
           <span 
             class="font-bold"
             :class="totalFilteredTodayProfit >= 0 ? 'text-rose-400' : 'text-emerald-400'"
@@ -307,14 +307,14 @@
               {{ pos.today_profit_rate >= 0 ? '+' : '' }}{{ pos.today_profit_rate?.toFixed(2) }}%
             </div>
             <div class="text-[11px] text-slate-400 num-font mt-0.5">
-              现价: ¥{{ pos.current_price?.toFixed(pos.asset_type === 'fund' ? 4 : 2) }}
+              最新价: ¥{{ pos.current_price?.toFixed(pos.asset_type === 'fund' ? 4 : 2) }}
             </div>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-xs bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60 num-font">
           <div>
-            <span class="text-slate-400 text-[11px]">持仓市值:</span>
+            <span class="text-slate-400 text-[11px]">市值:</span>
             <div class="font-semibold text-slate-200">
               ¥{{ privacyMode ? '••••••' : formatMoney(pos.market_value) }}
             </div>
@@ -326,7 +326,7 @@
             </div>
           </div>
           <div>
-            <span class="text-slate-400 text-[11px]">份额/成本:</span>
+            <span class="text-slate-400 text-[11px]">数量/成本:</span>
             <div class="text-slate-300">
               {{ privacyMode ? '••••' : pos.shares }} 份 (¥{{ privacyMode ? '••' : pos.cost_price?.toFixed(2) }})
             </div>
@@ -340,17 +340,17 @@
         </div>
 
         <div class="flex items-center justify-between text-xs pt-1">
-          <span v-if="pos.is_valuation" class="text-[10px] text-amber-400 font-medium">盘中估算数据</span>
-          <span v-else class="text-[10px] text-slate-500">已收盘结算</span>
+          <span v-if="pos.is_valuation" class="text-[10px] text-amber-400 font-medium">盘中估算</span>
+          <span v-else class="text-[10px] text-slate-500">已收盘</span>
           <button @click="$emit('delete-pos', pos.id)" class="text-slate-400 hover:text-rose-400 flex items-center space-x-1">
             <Trash2 class="w-3 h-3" />
-            <span>移除</span>
+            <span>删除</span>
           </button>
         </div>
       </div>
 
       <div v-if="sortedPositions.length === 0" class="py-8 text-center text-slate-400 text-xs">
-        暂无持仓记录
+        暂无持仓
       </div>
     </div>
   </div>

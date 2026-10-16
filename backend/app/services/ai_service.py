@@ -101,39 +101,60 @@ class AIService:
 
         return None
 
-    async def analyze_portfolio(self, positions_data: List[Dict[str, Any]], summary: Dict[str, Any], custom_prompt: str = "") -> str:
+    async def analyze_portfolio(
+        self,
+        positions_data: List[Dict[str, Any]],
+        summary: Dict[str, Any],
+        custom_prompt: str = "",
+        focus_areas: Optional[List[str]] = None,
+        investment_style: Optional[str] = "balanced",
+        detail_level: Optional[str] = "detailed"
+    ) -> str:
         api_key = self.api_key or os.getenv("AI_API_KEY")
         if not api_key:
-            return "⚠️ 未配置 AI API Key。请在系统右上角「AI 复盘」中配置 API Key（推荐 DeepSeek 或 通义千问）。"
+            return "⚠️ 未配置 AI 接口密钥。请在弹窗右上角「配置」中填入 API Key（推荐使用 DeepSeek 或兼容接口）。"
+
+        if not positions_data:
+            return "⚠️ 当前未选中任何持仓。请确保账户中有持仓数据，或在上方勾选需要分析的股票/基金。"
 
         index_items = await self.get_index_valuations()
 
         formatted_lines = []
-        etf_count = 0
-        total_count = len(positions_data)
+        total_asset = summary.get('total_asset', 0) or 1.0
 
-        for p in positions_data[:20]:
+        for p in positions_data[:30]:
             name = p.get('name', '')
             code = p.get('code', '')
             is_etf = p.get('is_etf', False) or "ETF" in name or "指数" in name or code.startswith(('51', '15', '56', '58', '16'))
-            if is_etf:
-                etf_count += 1
+            mv = p.get('market_value', 0) or 0
+            weight = p.get('weight')
+            if weight is None:
+                weight = round((mv / max(total_asset, 1.0)) * 100, 1)
+            cost = p.get('cost_price', 0) or 0
+            price = p.get('current_price', 0) or 0
+            today_rate = p.get('today_profit_rate', 0) or 0
+            total_rate = p.get('total_profit_rate', 0) or 0
+            today_p = p.get('today_profit', 0) or 0
+            total_p = p.get('total_profit', 0) or 0
+            shares = p.get('shares', 0) or 0
 
-            line = f"- 【{name} ({code})】"
-            if is_etf:
-                line += " [ETF/指数标的]"
-            
-            line += f": 现价 ¥{p.get('current_price')}, 今日涨跌 {p.get('today_profit_rate')}%, 今日盈亏 ¥{p.get('today_profit')}, 累计收益率 {p.get('total_profit_rate')}%"
+            type_tag = "[ETF/基金]" if is_etf else "[股票]"
+            line = (
+                f"- 【{name} ({code})】{type_tag}：\n"
+                f"  当前市值 ¥{mv:,.2f} (占总资产 {weight}%) | 持有 {shares} 股/份\n"
+                f"  买入成本 ¥{cost:.3f} | 当前现价 ¥{price:.3f}\n"
+                f"  今日涨跌 {today_rate:+.2f}% (今日盈亏 ¥{today_p:+.2f}) | 累计盈亏率 {total_rate:+.2f}% (累计盈亏 ¥{total_p:+.2f})"
+            )
 
             # 场内折溢价率 (针对ETF)
-            premium = p.get("premium_rate", 0.0)
-            iopv = p.get("iopv", 0.0)
+            premium = p.get("premium_rate", 0.0) or 0.0
+            iopv = p.get("iopv", 0.0) or 0.0
             if is_etf:
                 if iopv > 0:
-                    line += f", IOPV净值: {iopv}"
+                    line += f"\n  ↳ IOPV估算净值: {iopv:.4f}"
                 if abs(premium) > 0.01:
-                    prem_tag = "⚠️高溢价风险!" if premium > 1.0 else ("折价安全垫" if premium < -0.5 else "正常")
-                    line += f", 场内折溢价: {premium}%({prem_tag})"
+                    prem_tag = "⚠️溢价过高风险!" if premium > 1.0 else ("折价安全垫" if premium < -0.5 else "正常")
+                    line += f" | 场内折溢价: {premium:+.2f}% ({prem_tag})"
 
             # 关联指数估值与历史百分位
             matched = self.match_index(name, code, index_items)
@@ -141,7 +162,6 @@ class AIService:
                 idx_name = matched.get("name")
                 pe = matched.get("pe", 0)
                 pe_pct = round(matched.get("pe_percentile", 0) * 100, 1)
-                pb_pct = round(matched.get("pb_percentile", 0) * 100, 1)
                 eva = matched.get("eva_type", "mid")
                 eva_str = "低估定投区" if eva == "low" else ("高估风险区" if eva == "high" else "合理持有区")
                 yeild = round(matched.get("yeild", 0) * 100, 2)
@@ -149,31 +169,57 @@ class AIService:
 
             formatted_lines.append(line)
 
-        pos_summary = "\n".join(formatted_lines)
-        is_mainly_etf = (etf_count / max(total_count, 1)) >= 0.4
+        pos_summary = "\n\n".join(formatted_lines)
 
-        if is_mainly_etf:
-            system_msg = (
-                "你是一名拥有20年实战经验的顶级全球宏观对冲基金 CIO（首席投资官）与大类资产/ETF 指数配置专家。"
-                "你面对的是以【ETF 与指数基金】为核心持仓的投资者。ETF 投资无需阅读企业财报，核心关注：指数历史估值分位、大类资产配置比例、行业重叠度与场内折溢价风险。"
-                "\n"
-                "复盘要求：态度犀利、专业、务实，拒绝空洞套话，按以下维度进行硬核复盘：\n"
-                "1. 【大类配置与集中度】：检查持仓结构（宽基底仓、行业主题、跨境ETF、红利防守），诊断是否存在“看似分散实则同涨同跌”的伪分散风险；\n"
-                "2. 【指数估值水位与性价比】：结合提供的 PE 历史百分位（<20% 低估黄金坑，20%-70% 适中持有，>80% 泡沫偏贵），明确指出哪些标的性价比最高、哪些处于高风险区；\n"
-                "3. 【场内折溢价排雷】：若有 ETF 出现场内显著正溢价（尤其跨境或热门标的），严肃警示溢价抹平杀伤力；\n"
-                "4. 【实操策略与纪律】：给出清晰明确的定投节奏、网格补仓点位或止盈建议，督促恪守交易纪律。"
-            )
-        else:
-            system_msg = (
-                "你是一名拥有20年实战经验的顶级量化基金投资总监与老操盘手。"
-                "根据用户的实盘持仓与盈亏数据，进行简练、犀利、专业的复盘诊断。"
-                "禁止假大空的客套话，重点指出：1.今日盈亏的核心归因与仓位风险点；2.技术面与估值面建议；3.交易纪律提醒。"
-            )
+        # 投资风格描述
+        style_desc = {
+            "conservative": "稳健防守型（风险承受力较低，优先控制回撤与保本，注重安全边际与分红）",
+            "balanced": "均衡配置型（兼顾稳健与收益，核心宽基+适度行业轮动，注重中长线配置）",
+            "aggressive": "积极进取型（能承受较大短期波动，追求超额收益与成长弹性，紧跟市场主线）"
+        }.get(investment_style, "均衡配置型")
+
+        # 关注重点描述
+        focus_dict = {
+            "loss_recovery": "重点诊断浮亏持仓与解套策略（深入分析套牢资产的成因，明确是该逢低补仓拉平成本、调仓换股还是继续持有）",
+            "position_risk": "重点排查仓位与集中度风险（诊断单一重仓比例是否过高、资产结构是否合理、是否存在同涨同跌的假分散）",
+            "valuation": "重点分析估值性价比与加仓时机（结合指数历史PE分位与折溢价，明确指出哪些处于低估机会区、哪些偏贵不宜追高）",
+            "trade_points": "重点给出明确买卖与操作点位建议（给出具体的加减仓分批节奏、关键支撑/阻力参考与止盈止损点）"
+        }
+        focus_texts = [focus_dict[k] for k in (focus_areas or []) if k in focus_dict]
+        focus_summary = "；\n".join(focus_texts) if focus_texts else "综合诊断持仓合理性、仓位风险与后续调仓策略"
+
+        # 报告深度
+        depth_instruction = (
+            "请提供精炼直白的要点清单，2分钟内可读完，直接给核心结论与明确操作行动点。"
+            if detail_level == "concise" else
+            "请提供深入透彻的持仓体检，务必对用户选中的具体持仓逐一分析成本、盈亏与具体应对策略。"
+        )
+
+        system_msg = (
+            "你是一位实战经验丰富、客观理性的个人投资与资产配置助手。\n"
+            "你的任务是根据用户提供的【真实持仓明细（包含每只标的的代码、名称、买入成本、现价、累计盈亏、仓位占比、指数估值分位与折溢价）】，进行精准、务实、接地气的持仓诊断与操作建议。\n\n"
+            "必须严格遵守以下原则：\n"
+            "1. 【紧密结合真实持仓】：严禁脱离持仓空谈大道理！必须直接指名道姓分析用户的具体股票/基金，直接结合用户的实际成本价、浮盈浮亏金额与仓位占比给出判断。\n"
+            "2. 【通俗易懂，拒绝金融黑话】：不要使用任何虚浮概念（如‘CIO级诊断’、‘在管标的’、‘战报’等），用普通投资者一听就懂的大白话交流，真诚自然。\n"
+            "3. 【针对性强】：严格围绕用户的投资风格与指定的关注重点给出具体操作建议。\n"
+            "4. 【结构分明】：按照以下模块结构化输出（使用清晰的 Markdown 标题与列表）：\n"
+            "   - 📊 【持仓整体诊断】：整体仓位健康度、资产分布是否合理、最大风险点在哪里；\n"
+            "   - 🔍 【重点持仓逐一诊断】：针对主要持仓，结合成本价与现价，明确分析现状与应对思路；\n"
+            "   - 🎯 【具体操作与调仓建议】：明确指出下一步该做什么（哪些建议持有等待、哪些可以分批定投/加仓、哪些建议冲高减仓或止盈，并给出具体的参考区间或纪律）。"
+        )
 
         user_content = (
-            f"我的当前总资产: ¥{summary.get('total_asset')}, 今日总盈亏: ¥{summary.get('today_profit')} ({summary.get('today_profit_rate')}%)\n"
-            f"持仓明细与估值指标:\n{pos_summary}\n\n"
-            f"{custom_prompt or '请为我的持仓做专业复盘，重点分析ETF估值水位、大类资产集中度，并给出定投或止盈风控建议。'}"
+            f"【我的资产概况】\n"
+            f"- 总资产: ¥{summary.get('total_asset', 0):,.2f}\n"
+            f"- 今日盈亏: ¥{summary.get('today_profit', 0):+,.2f} ({summary.get('today_profit_rate', 0):+.2f}%)\n"
+            f"- 累计盈亏: ¥{summary.get('total_profit', 0):+,.2f} ({summary.get('total_profit_rate', 0):+.2f}%)\n"
+            f"- 本次分析持仓数量: {len(positions_data)} 只\n\n"
+            f"【我的投资偏好】\n"
+            f"- 投资风格: {style_desc}\n"
+            f"- 分析重点:\n{focus_summary}\n"
+            f"- 分析深度: {depth_instruction}\n\n"
+            f"【本次纳入分析的持仓明细】\n{pos_summary}\n\n"
+            f"【我的补充要求 / 特定疑问】\n{custom_prompt if custom_prompt else '请根据上述实际持仓，给出精准中肯的分析与具体操作建议。'}"
         )
 
         payload = {
@@ -182,12 +228,12 @@ class AIService:
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": user_content}
             ],
-            "temperature": 0.6,
-            "max_tokens": 1000
+            "temperature": 0.5,
+            "max_tokens": 2500
         }
 
         try:
-            async with httpx.AsyncClient(timeout=35.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
                     f"{self.api_base.rstrip('/')}/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},

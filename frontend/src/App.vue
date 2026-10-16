@@ -14,6 +14,7 @@
       @open-alerts="showAlertModal = true"
       @open-notify="showNotifyModal = true"
       @open-ai="showAIModal = true"
+      @open-kol="showKOLModal = true"
     />
 
     <!-- 主工作区 -->
@@ -42,7 +43,7 @@
     <!-- 页脚 -->
     <footer class="border-t border-slate-800/60 py-5 text-center text-xs text-slate-500 relative z-10">
       <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <p>PortfolioHub 资产罗盘 · 跨平台多账户全自动估值与监控终端</p>
+        <p>PortfolioHub 资产看板 · 个人多账户股票与基金看板</p>
         <p class="text-slate-600 text-[11px]">行情数据源由东方财富、雪球基金、天天基金提供</p>
       </div>
     </footer>
@@ -67,7 +68,14 @@
 
     <AIReviewModal 
       :visible="showAIModal"
+      :positions="positions"
+      :summary="summary"
       @close="showAIModal = false"
+    />
+
+    <KOLTrackerModal 
+      :visible="showKOLModal"
+      @close="showKOLModal = false"
     />
   </div>
 </template>
@@ -82,12 +90,14 @@ import AccountModal from './components/AccountModal.vue'
 import AlertModal from './components/AlertModal.vue'
 import NotifyModal from './components/NotifyModal.vue'
 import AIReviewModal from './components/AIReviewModal.vue'
+import KOLTrackerModal from './components/KOLTrackerModal.vue'
 
 import { getPortfolioSummary, getPositions, deletePosition, refreshQuotes } from './api'
 
 const refreshing = ref(false)
 const lastUpdatedTime = ref('')
 const isPrivacyMode = ref(false)
+const showKOLModal = ref(false)
 
 const summary = ref({
   total_asset: 0,
@@ -148,7 +158,7 @@ const loadData = async (manual = false) => {
 }
 
 const handleDeletePos = async (posId) => {
-  if (!confirm('确定要移除该标的的监控记录吗？')) return
+  if (!confirm('确定要删除这条持仓吗？')) return
   try {
     await deletePosition(posId)
     await loadData()

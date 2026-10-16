@@ -25,4 +25,10 @@ export const getNotifications = () => api.get('/notifications')
 export const updateNotification = (channel, data) => api.put(`/notifications/${channel}`, data)
 export const testNotification = (channel) => api.post('/notifications/test', null, { params: { channel } })
 
+export const getKOLNews = (keyword = '') => api.get('/kol/news', { params: { keyword } })
+export const getMarketTrends = () => api.get('/kol/market-trends')
+
 export default api
+
+
+

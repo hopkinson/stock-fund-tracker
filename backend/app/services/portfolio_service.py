@@ -72,16 +72,16 @@ class PortfolioService:
                 msg = ""
                 if rule.rule_type == "day_change_above" and pos.today_profit_rate >= rule.threshold:
                     triggered = True
-                    msg = f"📈【涨幅预警】{pos.name}({pos.code}) 今日上涨达到 +{pos.today_profit_rate}% (目标: +{rule.threshold}%)"
+                    msg = f"📈【涨幅提醒】{pos.name}({pos.code}) 今日上涨达 +{pos.today_profit_rate}% (目标: +{rule.threshold}%)"
                 elif rule.rule_type == "day_change_below" and pos.today_profit_rate <= -abs(rule.threshold):
                     triggered = True
-                    msg = f"📉【跌幅预警】{pos.name}({pos.code}) 今日下跌达到 {pos.today_profit_rate}% (目标: -{rule.threshold}%)"
+                    msg = f"📉【跌幅提醒】{pos.name}({pos.code}) 今日下跌达 {pos.today_profit_rate}% (目标: -{rule.threshold}%)"
                 elif rule.rule_type == "stop_profit" and pos.total_profit_rate >= rule.threshold:
                     triggered = True
-                    msg = f"🎯【止盈预警】{pos.name}({pos.code}) 累计收益率达 +{pos.total_profit_rate}% (止盈线: +{rule.threshold}%)"
+                    msg = f"🎯【止盈提醒】{pos.name}({pos.code}) 累计收益达 +{pos.total_profit_rate}% (目标: +{rule.threshold}%)"
                 elif rule.rule_type == "stop_loss" and pos.total_profit_rate <= -abs(rule.threshold):
                     triggered = True
-                    msg = f"⚠️【止损预警】{pos.name}({pos.code}) 累计亏损达 {pos.total_profit_rate}% (止损线: -{rule.threshold}%)"
+                    msg = f"⚠️【止损提醒】{pos.name}({pos.code}) 累计亏损达 {pos.total_profit_rate}% (目标: -{rule.threshold}%)"
 
                 if triggered:
                     # 避免一小时内重复触发
@@ -95,7 +95,7 @@ class PortfolioService:
         # 如果有预警触发，推送通知
         if alerts_triggered:
             alert_text = "\n\n".join(alerts_triggered)
-            await notify_service.send_notification("⚡ 资产标的异动/止盈止损提醒", alert_text, db, event_type="alert")
+            await notify_service.send_notification("⚡ 持仓涨跌与止盈提醒", alert_text, db, event_type="alert")
 
         overall_total_profit = round(total_asset - total_cost, 2)
         overall_total_rate = round((overall_total_profit / total_cost * 100), 2) if total_cost > 0 else 0.0
@@ -129,9 +129,9 @@ class PortfolioService:
         if sorted_pos:
             top_gain = sorted_pos[0]
             top_loss = sorted_pos[-1]
-            text += f"**🚀 今日领涨**：{top_gain.name} ({top_gain.today_profit_rate:+.2f}%，贡献 ¥{top_gain.today_profit:+.2f})\n"
+            text += f"**🚀 今日涨幅最大**：{top_gain.name} ({top_gain.today_profit_rate:+.2f}%，盈利 ¥{top_gain.today_profit:+.2f})\n"
             if top_loss.today_profit < 0:
-                text += f"**🔻 今日领跌**：{top_loss.name} ({top_loss.today_profit_rate:+.2f}%，回撤 ¥{top_loss.today_profit:+.2f})\n\n"
+                text += f"**🔻 今日跌幅最大**：{top_loss.name} ({top_loss.today_profit_rate:+.2f}%，亏损 ¥{top_loss.today_profit:+.2f})\n\n"
 
         text += "**📈 持仓明细一览：**\n"
         for p in sorted_pos:

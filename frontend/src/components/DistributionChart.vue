@@ -5,10 +5,10 @@
       <div class="flex items-center justify-between pb-3 border-b border-slate-800/60 mb-3">
         <div class="flex items-center space-x-2">
           <div class="w-2 h-2 rounded-full bg-indigo-500"></div>
-          <h3 class="text-sm font-semibold text-slate-200">资金多平台分布</h3>
+          <h3 class="text-sm font-semibold text-slate-200">平台分布</h3>
         </div>
         <div class="text-xs text-slate-400 flex items-center space-x-1.5">
-          <span>平台合计:</span>
+          <span>合计:</span>
           <span class="font-semibold text-slate-200 num-font">
             ¥{{ privacyMode ? '••••••' : formatMoney(platformTotal) }}
           </span>
@@ -20,7 +20,7 @@
         <div class="w-full sm:w-44 h-44 shrink-0 flex items-center justify-center relative">
           <div ref="platformChartRef" class="w-full h-full"></div>
           <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-            <span class="text-[10px] text-slate-400 font-medium">账户分布</span>
+            <span class="text-[10px] text-slate-400 font-medium">平台分布</span>
             <span class="text-xs font-bold text-slate-200 mt-0.5">{{ platformList.length }} 个平台</span>
           </div>
         </div>
@@ -59,7 +59,7 @@
           </div>
 
           <div v-if="platformList.length === 0" class="py-6 text-center text-xs text-slate-400">
-            暂无持仓资产分布
+            暂无持仓数据
           </div>
         </div>
       </div>
@@ -70,10 +70,10 @@
       <div class="flex items-center justify-between pb-3 border-b border-slate-800/60 mb-3">
         <div class="flex items-center space-x-2">
           <div class="w-2 h-2 rounded-full bg-rose-500"></div>
-          <h3 class="text-sm font-semibold text-slate-200">资产大类配置</h3>
+          <h3 class="text-sm font-semibold text-slate-200">资产类型分布</h3>
         </div>
         <div class="text-xs text-slate-400 flex items-center space-x-1.5">
-          <span>类别配置比重</span>
+          <span>类型占比</span>
         </div>
       </div>
 
@@ -82,8 +82,8 @@
         <div class="w-full sm:w-44 h-44 shrink-0 flex items-center justify-center relative">
           <div ref="typeChartRef" class="w-full h-full"></div>
           <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-            <span class="text-[10px] text-slate-400 font-medium">配置比例</span>
-            <span class="text-xs font-bold text-slate-200 mt-0.5">{{ typeList.length }} 大类</span>
+            <span class="text-[10px] text-slate-400 font-medium">资产占比</span>
+            <span class="text-xs font-bold text-slate-200 mt-0.5">{{ typeList.length }} 类</span>
           </div>
         </div>
 
@@ -121,7 +121,7 @@
           </div>
 
           <div v-if="typeList.length === 0" class="py-6 text-center text-xs text-slate-400">
-            暂无资产分类数据
+            暂无分类数据
           </div>
         </div>
       </div>

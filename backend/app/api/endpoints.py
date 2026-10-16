@@ -290,6 +290,10 @@ class AIConfigRequest(BaseModel):
 
 class AIReviewRequest(BaseModel):
     prompt: Optional[str] = ""
+    codes: Optional[List[str]] = None
+    focus_areas: Optional[List[str]] = None
+    investment_style: Optional[str] = "balanced"
+    detail_level: Optional[str] = "detailed"
 
 @router.get("/ai/config")
 async def get_ai_config():
@@ -326,11 +330,17 @@ async def set_ai_config(cfg: AIConfigRequest):
 
 @router.post("/ai/review")
 async def request_ai_review(req: AIReviewRequest, db: Session = Depends(get_db)):
-    """调用 AI 大模型对当前持仓进行深度操盘复盘"""
+    """结合用户实际持仓、成本与估值数据，生成持仓分析与调仓建议"""
     summary = await portfolio_service.refresh_all_positions(db)
-    positions = db.query(Position).all()
+    query = db.query(Position)
+    if req.codes and len(req.codes) > 0:
+        query = query.filter(Position.code.in_(req.codes))
+    positions = query.all()
+
     symbols = [{"code": p.code, "asset_type": p.asset_type} for p in positions]
     quotes = await quote_service.get_multi_quotes(symbols) if symbols else {}
+
+    total_asset = summary.get("total_asset", 0) or 1.0
 
     pos_data = [{
         "code": p.code,
@@ -339,7 +349,9 @@ async def request_ai_review(req: AIReviewRequest, db: Session = Depends(get_db))
         "today_profit_rate": p.today_profit_rate,
         "today_profit": p.today_profit,
         "total_profit_rate": p.total_profit_rate,
+        "total_profit": round(p.market_value - p.cost_price * p.shares, 2),
         "market_value": p.market_value,
+        "weight": round((p.market_value / max(total_asset, 1.0)) * 100, 2),
         "cost_price": p.cost_price,
         "shares": p.shares,
         "is_etf": quotes.get(p.code, {}).get("is_etf", False) or "ETF" in p.name or p.code.startswith(("51", "15", "56", "58", "16")),
@@ -347,28 +359,29 @@ async def request_ai_review(req: AIReviewRequest, db: Session = Depends(get_db))
         "premium_rate": quotes.get(p.code, {}).get("premium_rate", 0.0)
     } for p in positions]
 
-    result = await ai_service.analyze_portfolio(pos_data, summary, req.prompt)
+    result = await ai_service.analyze_portfolio(
+        positions_data=pos_data,
+        summary=summary,
+        custom_prompt=req.prompt,
+        focus_areas=req.focus_areas,
+        investment_style=req.investment_style,
+        detail_level=req.detail_level
+    )
     return {"success": True, "analysis": result}
 
-# ----------- KOL 调仓验真与快讯接口 -----------
-
-class KOLAnalyzeRequest(BaseModel):
-    content: str
-    blogger_name: Optional[str] = "小红书博主"
-    push_notify: bool = False
-
-@router.post("/kol/analyze")
-async def analyze_kol_post(req: KOLAnalyzeRequest, db: Session = Depends(get_db)):
-    """分析博主发布的交易动态，结合行情、估值与快讯进行综合验真"""
-    result = await kol_tracker_service.analyze_blogger_post(req.content, req.blogger_name)
-    if result.get("success") and req.push_notify and result.get("report_markdown"):
-        await kol_tracker_service.push_analysis_to_wechat(result["report_markdown"], db)
-    return result
+# ----------- 市场风向与快讯接口 -----------
 
 @router.get("/kol/news")
 async def get_market_news(keyword: Optional[str] = "", limit: int = 20):
     """获取最新 7x24 宏观与行业财经快讯"""
     news = await kol_tracker_service.get_latest_7x24_news(keyword=keyword, limit=limit)
     return {"success": True, "count": len(news), "news": news}
+
+@router.get("/kol/market-trends")
+async def get_market_trends():
+    """获取全市场热门板块动态与实时快讯（全自动无人工输入，客观防追高）"""
+    return await kol_tracker_service.get_market_trends_overview()
+
+
 
 

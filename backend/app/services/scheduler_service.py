@@ -53,13 +53,13 @@ async def job_open_market_notify():
         return
     db = SessionLocal()
     try:
-        report = await portfolio_service.get_summary_report(db, "🔔 A股开盘集合竞价提醒")
-        await notify_service.send_notification("🔔 A股开盘提醒", report, db, event_type="open")
+        report = await portfolio_service.get_summary_report(db, "🔔 今日开盘提醒")
+        await notify_service.send_notification("🔔 今日开盘提醒", report, db, event_type="open")
     finally:
         db.close()
 
 async def job_close_market_notify():
-    """15:05 收盘战报与记录快照"""
+    """15:05 收盘日报与记录快照"""
     now = datetime.now()
     if now.weekday() >= 5:
         return
@@ -67,13 +67,13 @@ async def job_close_market_notify():
     try:
         # 先记录快照
         portfolio_service.record_daily_snapshot(db)
-        report = await portfolio_service.get_summary_report(db, "🏁 今日A股收盘战报")
-        await notify_service.send_notification("🏁 今日收盘战报", report, db, event_type="close")
+        report = await portfolio_service.get_summary_report(db, "🏁 今日收盘日报")
+        await notify_service.send_notification("🏁 今日收盘日报", report, db, event_type="close")
     finally:
         db.close()
 
 async def job_night_fund_notify():
-    """21:45 场外基金最终公布净值刷新与报告"""
+    """21:45 基金最终公布净值刷新与通知"""
     now = datetime.now()
     if now.weekday() >= 5:
         return
@@ -81,13 +81,13 @@ async def job_night_fund_notify():
     try:
         # 刷新官方已公布净值
         portfolio_service.record_daily_snapshot(db)
-        report = await portfolio_service.get_summary_report(db, "🌙 今日基金官方净值核算报告")
-        await notify_service.send_notification("🌙 基金净值更新报告", report, db, event_type="night_fund")
+        report = await portfolio_service.get_summary_report(db, "🌙 今日基金净值更新")
+        await notify_service.send_notification("🌙 今日基金净值更新", report, db, event_type="night_fund")
     finally:
         db.close()
 
 async def job_kol_macro_notify():
-    """15:15 收盘后 7x24 宏观与行业快讯推送"""
+    """15:15 收盘快讯推送"""
     now = datetime.now()
     if now.weekday() >= 5:
         return
@@ -95,8 +95,8 @@ async def job_kol_macro_notify():
     if news:
         db = SessionLocal()
         try:
-            content = "### 📢 收盘 7x24 宏观与行业快讯\n" + "\n".join([f"- **{n['time'][-8:]}** {n['text']}" for n in news])
-            await notify_service.send_notification("📢 收盘宏观快讯", content, db, event_type="alert")
+            content = "### 📢 收盘快讯\n" + "\n".join([f"- **{n['time'][-8:]}** {n['text']}" for n in news])
+            await notify_service.send_notification("📢 收盘快讯", content, db, event_type="alert")
         finally:
             db.close()
 

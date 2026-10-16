@@ -136,64 +136,104 @@ class AutoSyncEngine:
 
     async def sync_eastmoney_web(self, account: Account, db: Session) -> Dict[str, Any]:
         """东方财富 Web 交易持仓自动同步 (jywg.18.cn)"""
-        cookie = (account.cookie or "").strip().strip('"').strip("'")
-        if not cookie:
+        raw_input = (account.cookie or "").strip()
+        if not raw_input:
             return {"success": False, "message": "未绑定东方财富交易凭据"}
 
-        # 东财 ASP.NET 交易会话关键校验
-        if "ASP.NET_SessionId" not in cookie:
+        # 1. 智能兼容：如果用户粘贴的是整个 fetch 语句或包含 validatekey 的 URL
+        validatekey = None
+        vk_match = re.search(r"validatekey=([a-zA-Z0-9_-]+)", raw_input)
+        if vk_match:
+            validatekey = vk_match.group(1)
+
+        # 2. 提取真正的 Cookie
+        cookie_match = re.search(r'["\']?cookie["\']?\s*[:=]\s*["\']?([^"\'\r\n]+)', raw_input, re.I)
+        cookie = cookie_match.group(1).strip() if cookie_match else raw_input.strip().strip('"\'')
+
+        # 3. 校验东财交易会话的关键凭据
+        if "Uid" not in cookie and "eastmoney_txzq_zjzh" not in cookie and "st_si" not in cookie:
             return {
                 "success": False,
-                "message": "Cookie中缺少关键会话凭据 ASP.NET_SessionId（东财开启了HttpOnly保护，控制台 document.cookie 无法获取）。请按 F12 在「网络(Network)」面板中复制请求标头的完整 Cookie。"
+                "message": "Cookie中缺少东财交易会话凭据（如 Uid / eastmoney_txzq_zjzh），请确认已登录网页端后复制完整 Cookie。"
             }
 
-        url = "https://jywg.18.cn/Search/Position"
+        # 4. 请求真正的持仓与资产数据接口
+        url = "https://jywg.18.cn/Com/queryAssetAndPositionV1"
+        params = {}
+        if validatekey:
+            params["validatekey"] = validatekey
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
             "Cookie": cookie,
             "Referer": "https://jywg.18.cn/Search/Position",
-            "X-Requested-With": "XMLHttpRequest"
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+        }
+        post_data = {
+            "moneyType": "RMB",
+            "qqhs": "999999",
+            "dwc": ""
         }
 
         try:
-            async with httpx.AsyncClient(headers=headers, timeout=10.0, follow_redirects=True) as client:
-                resp = await client.post(url, data={"qqhs": "100"})
-                if resp.status_code in (301, 302) or "login" in str(resp.url).lower() or "<html" in resp.text.lower()[:100]:
-                    return {"success": False, "message": "登录已过期或未登录，请在东财交易端登录后重新复制 Cookie"}
-                
+            async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=True) as client:
+                resp = await client.post(url, params=params, data=post_data)
+                if resp.status_code in (301, 302) or "login" in str(resp.url).lower():
+                    return {"success": False, "message": "东财登录已过期或未登录，请在东财交易端登录后重新复制 Cookie"}
+
+                if "<html" in resp.text.lower()[:100]:
+                    return {"success": False, "message": "东财交易会话已失效（返回登录页面），请重新登录网页复制 Cookie"}
+
                 if not resp.text.strip():
-                    return {"success": False, "message": "东财接口返回空响应，会话可能已断开，请重新登录网页复制 Cookie"}
+                    return {"success": False, "message": "东财接口返回空响应，请确认交易端是否在线并重新复制 Cookie"}
 
                 try:
                     data = resp.json()
                 except Exception:
-                    return {"success": False, "message": "东财接口返回非有效JSON格式，可能已重定向或超时，请重新复制 Cookie"}
+                    return {"success": False, "message": "东财接口返回非有效 JSON，会话可能已过期，请重新登录"}
 
-                status = data.get("Status")
-                if status is not None and status != 0:
+                status = str(data.get("Status", ""))
+                if status not in ("0", "200"):
                     err_msg = data.get("Message") or "交易会话已超时或失效"
-                    return {"success": False, "message": f"东财交易同步失败: {err_msg}，请重新登录并更新 Cookie"}
+                    return {"success": False, "message": f"东财交易同步失败: {err_msg}，请重新登录网页并更新 Cookie"}
 
-                positions = data.get("Data", []) or []
+                items = data.get("Data", []) or []
+                if isinstance(items, list) and len(items) > 0 and isinstance(items[0], dict):
+                    asset_info = items[0]
+                    positions = asset_info.get("positions", []) or []
+                    bonds = asset_info.get("bonds", []) or []
+                    all_positions = positions + bonds
+                else:
+                    all_positions = []
+
+                if not all_positions:
+                    return {"success": True, "message": "东方财富同步成功，当前账户无持仓标的"}
+
                 count = 0
-                for p in positions:
+                synced_codes = set()
+                for p in all_positions:
                     code = str(p.get("Zqdm") or p.get("zq_code") or "").strip()
                     name = p.get("Zqmc") or p.get("zq_name") or f"证券{code}"
-                    shares = float(p.get("Zqsl") or p.get("current_amount") or 0.0) # 证券数量
-                    cost = float(p.get("Cbjg") or p.get("cost_price") or 0.0)      # 成本价
-                    if not code or shares <= 0: continue
+                    shares = float(p.get("Zqsl") or p.get("current_amount") or 0.0)
+                    cost = float(p.get("Cbjg") or p.get("Ckcbj") or p.get("cost_price") or 0.0)
+                    if not code or shares <= 0:
+                        continue
 
+                    synced_codes.add(code)
+                    is_fund = "基金" in name or "ETF" in name or code.startswith(("15", "16", "51", "56", "58"))
                     pos = db.query(Position).filter(Position.account_id == account.id, Position.code == code).first()
                     if pos:
                         pos.shares = shares
                         if cost > 0: pos.cost_price = cost
                         pos.name = name
+                        pos.asset_type = "fund" if is_fund else "stock"
                     else:
                         db.add(Position(
                             account_id=account.id,
                             platform="eastmoney",
-                            asset_type="stock",
+                            asset_type="fund" if is_fund else "stock",
                             code=code,
                             name=name,
                             shares=shares,
@@ -201,6 +241,13 @@ class AutoSyncEngine:
                             notes="东财实盘自动同步"
                         ))
                     count += 1
+
+                # 清理已不在实际持仓中的旧标的（如历史模拟数据或已清仓标的）
+                old_positions = db.query(Position).filter(Position.account_id == account.id).all()
+                for op in old_positions:
+                    if op.code not in synced_codes:
+                        db.delete(op)
+
                 db.commit()
                 return {"success": True, "message": f"东方财富实盘同步成功，更新 {count} 只证券持仓"}
         except Exception as e:
